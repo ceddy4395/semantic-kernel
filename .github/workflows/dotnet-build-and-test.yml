@@ -24,12 +24,15 @@ permissions:
 
 jobs:
   paths-filter:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       dotnetChanges: ${{ steps.filter.outputs.dotnet }}
+    timeout-minutes: 1
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v2
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
+      - name: Chekc if only dotnet files are changed
+        uses: dorny/paths-filter@7267a85
         id: filter
         with:
           filters: |
@@ -48,23 +51,24 @@ jobs:
   dotnet-build-and-test:
     needs: paths-filter
     if: needs.paths-filter.outputs.dotnetChanges == 'true'
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { dotnet: "6.0-jammy", os: "ubuntu", configuration: Debug }
-          - { dotnet: "7.0-jammy", os: "ubuntu", configuration: Release }
-          - { dotnet: "8.0-jammy", os: "ubuntu", configuration: Release }
-          - { dotnet: "6.0", os: "windows", configuration: Release }
+          - {dotnet: "6.0-jammy", os: "ubuntu", configuration: Debug}
+          - {dotnet: "7.0-jammy", os: "ubuntu", configuration: Release}
+          - {dotnet: "8.0-jammy", os: "ubuntu", configuration: Release}
+          - {dotnet: "6.0", os: "windows", configuration: Release}
           - {
-              dotnet: "7.0",
-              os: "windows",
-              configuration: Debug,
-              integration-tests: true,
+            dotnet: "7.0",
+            os: "windows",
+            configuration: Debug,
+            integration-tests: true,
             }
           - { dotnet: "8.0", os: "windows", configuration: Release }
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     container:
       image: mcr.microsoft.com/dotnet/sdk:${{ matrix.dotnet }}
       env:
@@ -72,7 +76,8 @@ jobs:
         GITHUB_ACTIONS: "true"
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
 
       - name: Build dotnet solutions
         run: |
@@ -124,7 +129,7 @@ jobs:
 
       # Generate test reports and check coverage
       - name: Generate test reports
-        uses: danielpalme/ReportGenerator-GitHub-Action@5.2.4
+        uses: danielpalme/ReportGenerator-GitHub-Action@3e39bd1
         with:
           reports: "./TestResults/Coverage/**/coverage.cobertura.xml"
           targetdir: "./TestResults/Reports"
@@ -139,7 +144,8 @@ jobs:
   # This final job is required to satisfy the merge queue. It must only run (or succeed) if no tests failed
   dotnet-build-and-test-check:
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 1
     needs: [dotnet-build-and-test]
     steps:
       - name: Get Date
@@ -150,14 +156,12 @@ jobs:
       - name: Run Type is Daily
         if: ${{ github.event_name == 'schedule' }}
         shell: bash
-        run: |
-          echo "run_type=Daily" >> "$GITHUB_ENV"
+        run: echo "run_type=Daily" >> "$GITHUB_ENV"
 
       - name: Run Type is Manual
         if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
-        run: |
-          echo "run_type=Manual" >> "$GITHUB_ENV"
+        run: echo "run_type=Manual" >> "$GITHUB_ENV"
 
       - name: Run Type is ${{ github.event_name }}
         if: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'}}
@@ -168,13 +172,13 @@ jobs:
       - name: Fail workflow if tests failed
         id: check_tests_failed
         if: contains(join(needs.*.result, ','), 'failure')
-        uses: actions/github-script@v6
+        uses: actions/github-script@d7906e4
         with:
           script: core.setFailed('Integration Tests Failed!')
 
       - name: Fail workflow if tests cancelled
         id: check_tests_cancelled
         if: contains(join(needs.*.result, ','), 'cancelled')
-        uses: actions/github-script@v6
+        uses: actions/github-script@d7906e4
         with:
           script: core.setFailed('Integration Tests Cancelled!')

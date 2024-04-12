@@ -2,7 +2,7 @@ name: Merge Gatekeeper
 
 on:
   pull_request:
-    branches: [ "main", "feature*" ]
+    branches: ["main", "feature*"]
   merge_group:
     branches: ["main"]
 
@@ -12,18 +12,20 @@ concurrency:
 
 jobs:
   merge-gatekeeper:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     # Restrict permissions of the GITHUB_TOKEN.
     # Docs: https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
     permissions:
       checks: read
       statuses: read
+    timeout-minutes: 70
+    if: github.repository == 'microsoft/semantic-kernel'
     steps:
       - name: Run Merge Gatekeeper
         # NOTE: v1 is updated to reflect the latest v1.x.y. Please use any tag/branch that suits your needs:
         #       https://github.com/upsidr/merge-gatekeeper/tags
         #       https://github.com/upsidr/merge-gatekeeper/branches
-        uses: upsidr/merge-gatekeeper@v1
+        uses: upsidr/merge-gatekeeper@09af7a8
         if: github.event_name == 'pull_request'
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

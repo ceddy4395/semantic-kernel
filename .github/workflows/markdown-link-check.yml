@@ -10,14 +10,17 @@ permissions:
 
 jobs:
   markdown-link-check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     # check out the latest version of the code
+    timeout-minutes: 5
+    permissions: {}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
 
       # Checks the status of hyperlinks in .md files in verbose mode
       - name: Check links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        uses: gaurav-nelson/github-action-markdown-link-check@5c5dfc0
         with:
           use-verbose-mode: "yes"
           config-file: ".github/workflows/markdown-link-check-config.json"

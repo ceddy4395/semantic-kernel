@@ -11,19 +11,23 @@ on:
   merge_group:
     branches: ["main"]
   schedule:
-    - cron: "0 0 * * *" # Run at midnight UTC daily
+    - cron: "0 0 * * *"  # Run at midnight UTC daily
 
 permissions:
   contents: read
 
 jobs:
   paths-filter:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       pythonChanges: ${{ steps.filter.outputs.python}}
+    if: ${{ github.repository == 'microsoft/semantic-kernel' }}
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v2
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
+      - name: Check if python files have changed
+        uses: dorny/paths-filter@7267a85
         id: filter
         with:
           filters: |
@@ -41,8 +45,9 @@ jobs:
   python-merge-gate:
     name: Python Pre-Merge Integration Tests
     needs: paths-filter
-    if: github.event_name != 'pull_request' && github.event_name != 'schedule' && needs.paths-filter.outputs.pythonChanges == 'true'
+    if: github.event_name != 'pull_request' && github.event_name != 'schedule' && needs.paths-filter.outputs.pythonChanges == 'true' && github.repository == 'microsoft/semantic-kernel'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       max-parallel: 1
       fail-fast: false
@@ -50,30 +55,39 @@ jobs:
         python-version: ["3.11"]
         os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
       - name: Install poetry
-        run: pipx install poetry
+        run: pipx install poetry==1.8.2
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@82c7e63
         with:
           python-version: ${{ matrix.python-version }}
           cache: "poetry"
       - name: Install dependencies with hnswlib native disabled
         if: matrix.os == 'macos-latest' && matrix.python-version == '3.11'
-        run: |
-          export HNSWLIB_NO_NATIVE=1
-          python -m pip install --upgrade pip setuptools wheel
-          cd python && poetry install --with tests
+        env:
+          HNSWLIB_NO_NATIVE: 1
+        run: python -m pip install --upgrade setuptools wheel
+      - name: Run poetry install
+        if: matrix.os == 'macos-latest' && matrix.python-version == '3.11'
+        env:
+          HNSWLIB_NO_NATIVE: 1
+        working-directory: ./python
+        run: poetry install --with tests
+
       - name: Install dependencies with hnswlib native enabled
         if: matrix.os != 'macos-latest' || matrix.python-version != '3.11'
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          cd python
-          poetry install --with tests
+        run: python -m pip install --upgrade pip setuptools wheel
+      - name: Install dependencies
+        if: matrix.os != 'macos-latest' || matrix.python-version != '3.11'
+        working-directory: ./python
+        run: poetry install --with tests
+
       - name: Run Integration Tests
         id: run_tests
         shell: bash
-        env: # Set Azure credentials secret as an input
+        env:  # Set Azure credentials secret as an input
           HNSWLIB_NO_NATIVE: 1
           Python_Integration_Tests: Python_Integration_Tests
           AzureOpenAI__Label: azure-text-davinci-003
@@ -106,8 +120,9 @@ jobs:
 
   python-integration-tests:
     needs: paths-filter
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.paths-filter.outputs.pythonChanges == 'true'
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.paths-filter.outputs.pythonChanges == 'true' && github.repository == 'microsoft/semantic-kernel'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       max-parallel: 1
       fail-fast: false
@@ -115,31 +130,39 @@ jobs:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
       - name: Install poetry
-        run: pipx install poetry
+        run: pipx install poetry==1.8.2
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: action/setup-python@82c7e63
         with:
           python-version: ${{ matrix.python-version }}
           cache: "poetry"
       - name: Install dependencies with hnswlib native disabled
         if: matrix.os == 'macos-latest' && matrix.python-version == '3.11'
-        run: |
-          export HNSWLIB_NO_NATIVE=1
-          python -m pip install --upgrade pip setuptools wheel
-          cd python && poetry install --with tests
+        env:
+          HNSWLIB_NO_NATIVE: 1
+        run: python -m pip install --upgrade pip setuptools wheel
+      - name: Do poetry install
+        env:
+          HNSWLIB_NO_NATIVE: 1
+        working-directory: ./python
+        run: poetry install --with tests
 
       - name: Install dependencies with hnswlib native enabled
         if: matrix.os != 'macos-latest' || matrix.python-version != '3.11'
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          cd python && poetry install --with tests
+        run: python -m pip install --upgrade pip setuptools wheel
+
+      - name: Do poetry install
+        if: matrix.os != 'macos-latest' || matrix.python-version != '3.11'
+        working-directory: ./python
+        run: poetry install --with-tests
 
       - name: Run Integration Tests
         id: run_tests
         shell: bash
-        env: # Set Azure credentials secret as an input
+        env:  # Set Azure credentials secret as an input
           HNSWLIB_NO_NATIVE: 1
           Python_Integration_Tests: Python_Integration_Tests
           AzureOpenAI__Label: azure-text-davinci-003
@@ -172,8 +195,9 @@ jobs:
 
   # This final job is required to satisfy the merge queue. It must only run (or succeed) if no tests failed
   python-integration-tests-check:
-    if: always()
-    runs-on: ubuntu-latest
+    if: always() && github.repository == 'microsoft/semantic-kernel'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 1
     strategy:
       max-parallel: 1
       fail-fast: false
@@ -205,14 +229,14 @@ jobs:
       - name: Fail workflow if tests failed
         id: check_tests_failed
         if: contains(join(needs.*.result, ','), 'failure')
-        uses: actions/github-script@v6
+        uses: actions/github-script@d7906e4
         with:
           script: core.setFailed('Integration Tests Failed!')
 
       - name: Fail workflow if tests cancelled
         id: check_tests_cancelled
         if: contains(join(needs.*.result, ','), 'cancelled')
-        uses: actions/github-script@v6
+        uses: actions/github-script@d7906e4
         with:
           script: core.setFailed('Integration Tests Cancelled!')
 

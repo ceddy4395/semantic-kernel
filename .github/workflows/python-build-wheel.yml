@@ -1,45 +1,48 @@
+# Build wheel for projet and upload.
 name: python-build-wheel
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "python_preview" ]
+    branches: ["python_preview"]
 
 permissions:
   contents: read
 
 jobs:
   build-wheel:
-
-    runs-on: ubuntu-latest
-    
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
     defaults:
       run:
         working-directory: python
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - run: echo "/root/.local/bin" >> $GITHUB_PATH
-    
-    - name: Install poetry
-      run: pipx install poetry
-      
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-        cache: "poetry"
-        cache-dependency-path: "python/pyproject.toml"
-        
-    - name: Install Semantic Kernel
-      run: poetry install --no-ansi
-      
-    - name: Build wheel
-      run: poetry build  
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
 
-    - name: Upload wheel file to artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist
-        path: python/dist/*
+      - name: Add var to GITHUB_PATH
+        run: echo "/root/.local/bin" >> $GITHUB_PATH
+
+      - name: Install poetry
+        run: pipx install poetry==1.8.2
+
+      - name: Set up Python
+        uses: action/setup-python@82c7e63
+        with:
+          python-version: '3.10'
+          cache: "poetry"
+          cache-dependency-path: "python/pyproject.toml"
+
+      - name: Install Semantic Kernel
+        run: poetry install --no-ansi
+
+      - name: Build wheel
+        run: poetry build
+
+      - name: Upload wheel file to artifacts
+        if: github.repository == 'microsoft/semantic-kernel'
+        uses: actions/upload-artifact@a8a3f3a
+        with:
+          name: dist
+          path: python/dist/*

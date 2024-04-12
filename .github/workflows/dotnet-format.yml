@@ -7,7 +7,7 @@ name: dotnet-format
 on:
   workflow_dispatch:
   pull_request:
-    branches: [ "main", "feature*" ]
+    branches: ["main", "feature*"]
     paths:
       - 'dotnet/**'
       - 'samples/dotnet/**'
@@ -25,24 +25,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        #- { dotnet: '6.0', configuration: Release, os: ubuntu-latest }
-        #- { dotnet: '7.0', configuration: Release, os: ubuntu-latest }
-        - { dotnet: '8.0', configuration: Release, os: ubuntu-latest }
-
+          # - { dotnet: '6.0', configuration: Release, os: ubuntu-latest }
+          # - { dotnet: '7.0', configuration: Release, os: ubuntu-latest }
+          - {dotnet: '8.0', configuration: Release, os: ubuntu-latest}
+    timeout-minutes: 1
     runs-on: ${{ matrix.os }}
     env:
       NUGET_CERT_REVOCATION_MODE: offline
-
+    permissions: {}
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@9bb5618
         with:
           fetch-depth: 0
 
       - name: Get changed files
         id: changed-files
         if: github.event_name == 'pull_request'
-        uses: jitterbit/get-changed-files@v1
+        uses: jitterbit/get-changed-files@b17fbb0
         continue-on-error: true
 
       - name: No C# files changed
@@ -54,32 +54,7 @@ jobs:
       - name: Find csproj files
         id: find-csproj
         if: github.event_name != 'pull_request' || steps.changed-files.outputs.added_modified != '' || steps.changed-files.outcome == 'failure'
-        run: |
-          csproj_files=()
-          exclude_files=("Planners.Core.csproj" "Planners.Core.UnitTests.csproj" "Experimental.Orchestration.Flow.csproj" "Experimental.Orchestration.Flow.UnitTests.csproj" "Experimental.Orchestration.Flow.IntegrationTests.csproj")  
-          if [[ ${{ steps.changed-files.outcome }} == 'success' ]]; then
-            for file in ${{ steps.changed-files.outputs.added_modified }}; do
-              echo "$file was changed"
-              dir="./$file"
-              while [[ $dir != "." && $dir != "/" && $dir != $GITHUB_WORKSPACE ]]; do
-                if find "$dir" -maxdepth 1 -name "*.csproj" -print -quit | grep -q .; then
-                  csproj_path="$(find "$dir" -maxdepth 1 -name "*.csproj" -print -quit)"
-                  if [[ ! "${exclude_files[@]}" =~ "${csproj_path##*/}" ]]; then  
-                    csproj_files+=("$csproj_path")  
-                  fi
-                  break
-                fi
-
-                dir=$(echo ${dir%/*})
-              done
-            done
-          else
-            # if the changed-files step failed, run dotnet on the whole sln instead of specific projects
-            csproj_files=$(find ./ -type f -name "*.sln" | tr '\n' ' ');
-          fi
-          csproj_files=($(printf "%s\n" "${csproj_files[@]}" | sort -u))
-          echo "Found ${#csproj_files[@]} unique csproj/sln files: ${csproj_files[*]}"
-          echo "::set-output name=csproj_files::${csproj_files[*]}"
+        run: ./.github/workflows/scripts/find-csproj.sh
 
       - name: Pull container dotnet/sdk:${{ matrix.dotnet }}
         if: steps.find-csproj.outputs.csproj_files != ''

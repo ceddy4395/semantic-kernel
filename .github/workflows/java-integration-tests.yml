@@ -3,11 +3,11 @@ name: Run Java Integration Tests and Samples
 on:
   workflow_dispatch:
   push:
-    branches: [ "main", "java-development" ]
+    branches: ["main", "java-development"]
     paths:
       - 'java/**'
   pull_request:
-    branches: [ "main", "java-development" ]
+    branches: ["main", "java-development"]
     paths:
       - 'java/**'
 
@@ -16,12 +16,15 @@ permissions:
 
 jobs:
   paths-filter:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       javaChanges: ${{ steps.filter.outputs.java }}
+    timeout-minutes: 1
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v2
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
+      - name: Check if java files have changed
+        uses: dorny/paths-filter@7267a85
         id: filter
         with:
           filters: |
@@ -37,40 +40,36 @@ jobs:
         if: steps.filter.outputs.java != 'true'
         run: echo "NOT java file"
   java-integration-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: paths-filter
     if: needs.paths-filter.outputs.javaChanges == 'true'
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
-        java-versions: [8, 17]
+        include:
+          - java-version: 8
+            jdk-version: 11
+          - java-version: 17
+            jdk-version: 17
 
-    name: Java Tests on JDK${{ matrix.java-versions }}
+    name: Java Tests on JDK${{ matrix.java-version }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@9bb5618
 
       # Need to use JDK 11 to build for JDK 8
-      - name: Set JDK
-        id: set-jdk
-        shell: bash
-        run: |
-          if [[ ${{ matrix.java-versions }} == 8 ]]; then
-            echo "JDK_VERSION=11" >> $GITHUB_OUTPUT
-          else
-            version=${{ matrix.java-versions }}
-            echo "JDK_VERSION=$version" >> $GITHUB_OUTPUT
-          fi
 
-      - uses: actions/setup-java@v4
+      - name: Setup java ${{ matrix.jdk-version }}
+        uses: actions/setup-java@99b8673
         with:
-          java-version: ${{ steps.set-jdk.outputs.JDK_VERSION }}
+          java-version: ${{ matrix.jdk-version }}
           distribution: microsoft
           cache: maven
 
       - name: Build with Maven
-        run: ./mvnw -B -Pbug-check -DskipTests -Pcompile-jdk${{ matrix.java-versions }} clean install --file pom.xml
+        run: ./mvnw -B -Pbug-check -DskipTests -Pcompile-jdk${{ matrix.java-version }} clean install --file pom.xml
         working-directory: java
 
       # API tests run on JDK 17+
@@ -82,10 +81,10 @@ jobs:
           AZURE_OPENAI_ENDPOINT: ""
           AZURE_OPENAI_API_KEY: ""
           AZURE_OPENAI_DEPLOYMENT_NAME: ""
-        if: ${{ matrix.java-versions >= 17 }}
+        if: ${{ matrix.java-version >= 17 }}
 
       # Samples build on JDK 17+
       - name: Build semantic-kernel samples
         run: ../mvnw -B clean install --file pom.xml
         working-directory: java/samples
-        if: ${{ matrix.java-versions >= 17 }}
+        if: ${{ matrix.java-version >= 17 }}

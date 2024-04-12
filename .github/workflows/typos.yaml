@@ -17,13 +17,15 @@ on:
 jobs:
   run:
     name: Spell Check with Typos
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 1
+    permissions: {}
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@9bb5618
 
       - name: Use custom config file
-        uses: crate-ci/typos@master
+        uses: crate-ci/typos@c15b28f
         with:
           config: .github/_typos.toml
           write_changes: false

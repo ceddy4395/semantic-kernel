@@ -17,28 +17,34 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     permissions:
       contents: write
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@9bb5618
       - name: Install poetry
-        run: pipx install poetry
+        run: pipx install poetry==1.8.2
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: action/setup-python@82c7e63
         with:
           python-version: ${{ matrix.python-version }}
           cache: "poetry"
       - name: Install dependencies
-        run: cd python && poetry install --with unit-tests
+        working-directory: ./python
+        run: poetry install --with unit-tests
       - name: Test with pytest
-        run: cd python && poetry run pytest -q --junitxml=pytest-${{ matrix.os }}-${{ matrix.python-version }}.xml  --cov=semantic_kernel --cov-report=term-missing:skip-covered ./tests/unit | tee python-coverage-${{ matrix.os }}-${{ matrix.python-version }}.txt
+        working-directory: ./python
+        run: poetry run pytest -q --junitxml=pytest-${{ matrix.os }}-${{ matrix.python-version }}.xml  --cov=semantic_kernel --cov-report=term-missing:skip-covered ./tests/unit | tee python-coverage-${{ matrix.os }}-${{ matrix.python-version }}.txt
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3f3a
+        if: github.repository == 'microsoft/semantic-kernel'
         with:
           name: python-coverage-${{ matrix.os }}-${{ matrix.python-version }}.txt
           path: python/python-coverage-${{ matrix.os }}-${{ matrix.python-version }}.txt
           overwrite: true
-          retention-days: 1  
+          retention-days: 1
       - name: Upload pytest.xml
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3f3a
+        if: github.repository == 'microsoft/semantic-kernel'
         with:
           name: pytest-${{ matrix.os }}-${{ matrix.python-version }}.xml
           path: python/pytest-${{ matrix.os }}-${{ matrix.python-version }}.xml
